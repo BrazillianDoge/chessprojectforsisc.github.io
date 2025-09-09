@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>cool chess game i think</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    text-align: center;
+    background-color: #ffffff;
+    padding: 10px;
+    margin: 0;
+  }
+  #school-logo {
+    width: 100px;
+    margin: 10px auto;
+    display: block;
+  }
+  #player-inputs {
+    margin: 15px 0;
+  }
+  #player-inputs input {
+    padding: 5px 10px;
+    font-size: 1rem;
+    margin: 0 10px;
+    width: 150px;
+  }
+  #chessboard {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    max-width: 90vmin;
+    margin: 20px auto;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+  }
+  .square {
+    width: 100%;
+    padding-top: 100%;
+    position: relative;
+    box-sizing: border-box;
+    user-select: none;
+  }
+  .square div {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    user-select: none;
+    width: 90%;
+    height: 90%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5vw;
+  }
+  .piece img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+  }
+  .white { background-color: #ffd48f; }
+  .black { background-color: #de9b4a; }
+  .selected { outline: 3px solid yellow; }
+  .legal-move { background-color: limegreen !important; }
+  #scoreboard, #timer {
+    margin: 10px;
+    font-size: 1.2rem;
+  }
+  #turn-display {
+    font-weight: bold;
+    margin: 10px;
+    font-size: 1.3rem;
+  }
+  #buttons button {
+    margin: 5px;
+    padding: 10px 15px;
+    font-size: 1rem;
+    border-radius: 6px;
+    border: none;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+  }
+  #winner{
+    font-size: 10vh;
+  }
+</style>
+</head>
+<body>
+
+  <img src="school-logo.png" alt="School Logo" id="school-logo" />
+
+  <h2>♟️ chess</h2>
+
+  <div id="player-inputs">
+    <input type="text" id="whiteName" placeholder="White Player Name" value="White Player" />
+    <input type="text" id="blackName" placeholder="Black Player Name" value="Black Player" />
+    <button onclick="startGame()">Start Game</button>
+  </div>
+
+  <div id="turn-display">Turn: White Player (White)</div>
+
+  <div id="scoreboard">White Player: 0 | Black Player: 0</div>
+  <div id="timer">⏱️ White Player: 0s | Black Player: 0s</div>
+
+  <br>
+
+  <div id="buttons">
+    <button onclick="startGame()">🔄 restart</button>
+    <button onclick="togglePieces()"> switch pieces</button>
+  </div>
+
+  <div id="winner"></div>
+
+  <div id="chessboard"></div>
+
+<script>
+  const board = document.getElementById("chessboard");
+  const scoreBoard = document.getElementById("scoreboard");
+  const timerDisplay = document.getElementById("timer");
+  const turnDisplay = document.getElementById("turn-display");
+  const whiteNameInput = document.getElementById("whiteName");
+  const blackNameInput = document.getElementById("blackName");
+  const winner = document.getElementById("winner");
+
+  let useUnicode = false;
+
+  const pieceImages = {
+    r: "rook.png", n: "knight.jpg", b: "bishop.png", q: "queen.png", k: "king.png", p: "pawn.jpg",
+    R: "rook_white.png", N: "knight_white.png", B: "bishop_white.png", Q: "queen_white.jpg", K: "king_white.png", P: "pawn_white.jpg"
+  };
+
+  const pieceUnicode = {
+    r: "♜", n: "♞", b: "♝", q: "♛", k: "♚", p: "♟",
+    R: "♖", N: "♘", B: "♗", Q: "♕", K: "♔", P: "♙"
+  };
+
+  let squares = [];
+  let selected = null;
+  let turn = "white";
+  let score = { white: 0, black: 0 };
+  let timers = { white: 0, black: 0 };
+  let timerInterval;
+
+  const initialBoard = [
+    ["r","n","b","q","k","b","n","r"],
+    ["p","p","p","p","p","p","p","p"],
+    ["","","","","","","",""],
+    ["","","","","","","",""],
+    ["","","","","","","",""],
+    ["","","","","","","",""],
+    ["P","P","P","P","P","P","P","P"],
+    ["R","N","B","Q","K","B","N","R"]
+  ];
+
+  function renderPiece(piece) {
+    if (!piece) return `<div></div>`;
+    if (useUnicode) {
+      return `<div class="piece">${pieceUnicode[piece]}</div>`;
+    } else {
+      return `<div class="piece"><img src="${pieceImages[piece]}" alt="${piece}" /></div>`;
+    }
+  }
+
+  function togglePieces() {
+    useUnicode = !useUnicode;
+    for (let i = 0; i < 8; i++) {
+      for (let j = 0; j < 8; j++) {
+        const sq = squares[i][j];
+        const piece = sq.dataset.piece;
+        sq.innerHTML = renderPiece(piece);
+      }
+    }
+  }
+
+  function startGame() {
+    clearInterval(timerInterval);
+    board.innerHTML = "";
+    winner.innerHTML = "";
+    score = { white: 0, black: 0 };
+    timers = { white: 0, black: 0 };
+    turn = "white";
+    selected = null;
+    squares = [];
+    updateDisplay();
+
+    for (let i = 0; i < 8; i++) {
+      squares[i] = [];
+      for (let j = 0; j < 8; j++) {
+        const sq = document.createElement("div");
+        const isWhiteSquare = (i + j) % 2 === 0;
+        sq.className = `square ${isWhiteSquare ? "white" : "black"}`;
+        sq.dataset.row = i;
+        sq.dataset.col = j;
+        const piece = initialBoard[i][j];
+        sq.innerHTML = renderPiece(piece);
+        sq.dataset.piece = piece;
+        sq.addEventListener("click", handleClick);
+        board.appendChild(sq);
+        squares[i][j] = sq;
+      }
+    }
+    timerInterval = setInterval(() => {
+      timers[turn]++;
+      updateDisplay();
+    }, 1000);
+  }
+
+  function updateDisplay() {
+    const whiteName = whiteNameInput.value || "White Player";
+    const blackName = blackNameInput.value || "Black Player";
+
+    scoreBoard.textContent = `${whiteName}: ${score.white} | ${blackName}: ${score.black}`;
+    timerDisplay.textContent = `⏱️ ${whiteName}: ${timers.white}s | ${blackName}: ${timers.black}s`;
+    turnDisplay.textContent = `Turn: ${turn === "white" ? whiteName : blackName} (${turn.charAt(0).toUpperCase() + turn.slice(1)})`;
+  }
+
+  function handleClick(e) {
+    const sq = e.currentTarget;
+    const row = +sq.dataset.row;
+    const col = +sq.dataset.col;
+    const piece = sq.dataset.piece;
+
+    clearHighlights();
+
+    if (selected) {
+      const [sr, sc] = selected;
+      const fromSq = squares[sr][sc];
+
+      if ((sr !== row || sc !== col) && isLegalMove(sr, sc, row, col)) {
+        const target = squares[row][col];
+        if (target.dataset.piece) {
+          const captured = target.dataset.piece;
+          const side = captured === captured.toUpperCase() ? "white" : "black";
+          if (target.dataset.piece == "K"){
+            startGame()
+            document.getElementById("winner").innerHTML = "black won"
+          }
+          if (target.dataset.piece == "k"){
+            startGame()
+            document.getElementById("winner").innerHTML = "white won"
+          }
+          score[side === "white" ? "black" : "white"]++;
+        }
+        const movingPiece = fromSq.dataset.piece;
+        target.innerHTML = renderPiece(movingPiece);
+        target.dataset.piece = movingPiece;
+        fromSq.innerHTML = `<div></div>`;
+        fromSq.dataset.piece = "";
+
+        turn = turn === "white" ? "black" : "white";
+        updateDisplay();
+      }
+      selected = null;
+    } else if (piece && (turn === "white" ? piece === piece.toUpperCase() : piece === piece.toLowerCase())) {
+      selected = [row, col];
+      sq.classList.add("selected");
+      highlightMoves(row, col);
+    }
+  }
+
+  function clearHighlights() {
+    document.querySelectorAll(".square").forEach(sq => {
+      sq.classList.remove("selected", "legal-move");
+    });
+  }
+
+  function isLegalMove(sr, sc, er, ec) {
+    const piece = squares[sr][sc].dataset.piece;
+    if (!piece) return false;
+
+    const side = piece === piece.toUpperCase() ? "white" : "black";
+    const dr = er - sr;
+    const dc = ec - sc;
+    const absDr = Math.abs(dr);
+    const absDc = Math.abs(dc);
+    const destPiece = squares[er][ec].dataset.piece;
+    const destSide = destPiece ? (destPiece === destPiece.toUpperCase() ? "white" : "black") : null;
+
+    if (destSide === side) return false;
+
+    switch(piece.toLowerCase()) {
+      case 'p':
+        const forward = side === "white" ? -1 : 1;
+        const startRow = side === "white" ? 6 : 1;
+        if (dc === 0) {
+          if (dr === forward && !destPiece) return true;
+          if (dr === 2 * forward && sr === startRow && !destPiece && !squares[sr + forward][sc].dataset.piece) return true;
+        }
+        if (absDc === 1 && dr === forward && destPiece && destSide !== side) return true;
+        return false;
+
+      case 'n':
+        if ((absDr === 2 && absDc === 1) || (absDr === 1 && absDc === 2)) return true;
+        return false;
+
+      case 'b':
+        if (absDr === absDc && isPathClear(sr, sc, er, ec)) return true;
+        return false;
+
+      case 'r':
+        if ((dr === 0 || dc === 0) && isPathClear(sr, sc, er, ec)) return true;
+        return false;
+
+      case 'q':
+        if ((absDr === absDc || dr === 0 || dc === 0) && isPathClear(sr, sc, er, ec)) return true;
+        return false;
+
+      case 'k':
+        if (absDr <= 1 && absDc <= 1) return true;
+        return false;
+
+      default:
+        return false;
+    }
+  }
+
+  function isPathClear(sr, sc, er, ec) {
+    const dr = Math.sign(er - sr);
+    const dc = Math.sign(ec - sc);
+    let r = sr + dr;
+    let c = sc + dc;
+    while(r !== er || c !== ec) {
+      if (squares[r][c].dataset.piece) return false;
+      r += dr;
+      c += dc;
+    }
+    return true;
+  }
+
+  function highlightMoves(sr, sc) {
+    for(let i = 0; i < 8; i++) {
+      for(let j = 0; j < 8; j++) {
+        if(isLegalMove(sr, sc, i, j)) {
+          squares[i][j].classList.add("legal-move");
+        }
+      }
+    }
+  }
+
+  startGame();
+</script>
+
+</body>
+</html>
