@@ -86,6 +86,24 @@
   #winner{
     font-size: 10vh;
   }
+  #promotion-menu {
+    display:none;
+    position:fixed;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    background:#fff;
+    border:2px solid #333;
+    border-radius:12px;
+    padding:20px;
+    z-index:1000;
+  }
+  #promotion-menu button {
+    margin: 5px;
+    padding: 8px 12px;
+    font-size: 1.2rem;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -116,6 +134,14 @@
 
   <div id="chessboard"></div>
 
+  <div id="promotion-menu">
+    <div style="font-weight:bold; margin-bottom:10px;">choose what you wanr to promote to:</div>
+    <button onclick="promotePawn('q')">♕ queen</button>
+    <button onclick="promotePawn('r')">♖ rook</button>
+    <button onclick="promotePawn('b')">♗ bishop</button>
+    <button onclick="promotePawn('n')">♘ the goat(knight)</button>
+  </div>
+
 <script>
   const board = document.getElementById("chessboard");
   const scoreBoard = document.getElementById("scoreboard");
@@ -124,8 +150,16 @@
   const whiteNameInput = document.getElementById("whiteName");
   const blackNameInput = document.getElementById("blackName");
   const winner = document.getElementById("winner");
+  const promotionMenu = document.getElementById("promotion-menu");
 
   let useUnicode = true;
+  let squares = [];
+  let selected = null;
+  let turn = "white";
+  let score = { white: 0, black: 0 };
+  let timers = { white: 0, black: 0 };
+  let timerInterval;
+  let pendingPromotion = null;
 
   const pieceImages = {
     r: "rook.png", n: "knight.jpg", b: "bishop.png", q: "queen.png", k: "king.png", p: "pawn.jpg",
@@ -136,13 +170,6 @@
     r: "♜", n: "♞", b: "♝", q: "♛", k: "♚", p: "♟",
     R: "♖", N: "♘", B: "♗", Q: "♕", K: "♔", P: "♙"
   };
-
-  let squares = [];
-  let selected = null;
-  let turn = "white";
-  let score = { white: 0, black: 0 };
-  let timers = { white: 0, black: 0 };
-  let timerInterval;
 
   const initialBoard = [
     ["r","n","b","q","k","b","n","r"],
@@ -184,6 +211,8 @@
     turn = "white";
     selected = null;
     squares = [];
+    pendingPromotion = null;
+    promotionMenu.style.display = "none";
     updateDisplay();
 
     for (let i = 0; i < 8; i++) {
@@ -211,13 +240,14 @@
   function updateDisplay() {
     const whiteName = whiteNameInput.value || "White Player";
     const blackName = blackNameInput.value || "Black Player";
-
     scoreBoard.textContent = `${whiteName}: ${score.white} | ${blackName}: ${score.black}`;
     timerDisplay.textContent = `⏱️ ${whiteName}: ${timers.white}s | ${blackName}: ${timers.black}s`;
     turnDisplay.textContent = `Turn: ${turn === "white" ? whiteName : blackName} (${turn.charAt(0).toUpperCase() + turn.slice(1)})`;
   }
 
   function handleClick(e) {
+    if (pendingPromotion) return;
+
     const sq = e.currentTarget;
     const row = +sq.dataset.row;
     const col = +sq.dataset.col;
@@ -250,6 +280,15 @@
         fromSq.innerHTML = `<div></div>`;
         fromSq.dataset.piece = "";
 
+        if (movingPiece.toLowerCase() === 'p') {
+          const promotionRow = movingPiece === 'P' ? 0 : 7;
+          if (row === promotionRow) {
+            pendingPromotion = { target, movingPiece };
+            promotionMenu.style.display = "block";
+            return;
+          }
+        }
+
         turn = turn === "white" ? "black" : "white";
         updateDisplay();
       }
@@ -259,6 +298,18 @@
       sq.classList.add("selected");
       highlightMoves(row, col);
     }
+  }
+
+  function promotePawn(choice) {
+    if (!pendingPromotion) return;
+    const { target, movingPiece } = pendingPromotion;
+    const newPiece = movingPiece === 'P' ? choice.toUpperCase() : choice;
+    target.dataset.piece = newPiece;
+    target.innerHTML = renderPiece(newPiece);
+    pendingPromotion = null;
+    promotionMenu.style.display = "none";
+    turn = turn === "white" ? "black" : "white";
+    updateDisplay();
   }
 
   function clearHighlights() {
@@ -289,7 +340,7 @@
           if (dr === forward && !destPiece) return true;
           if (dr === 2 * forward && sr === startRow && !destPiece && !squares[sr + forward][sc].dataset.piece) return true;
         }
-        if (absDc === 1 && dr === forward && destPiece && destSide !== side) return true;
+        if (Math.abs(dc) === 1 && dr === forward && destPiece && destSide !== side) return true;
         return false;
 
       case 'n':
